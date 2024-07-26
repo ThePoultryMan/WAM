@@ -3,7 +3,7 @@
 
   import { invoke } from "@tauri-apps/api";
 
-  let gameVersion;
+  let gameVersion: string;
 
   onMount(async () => {
     gameVersion = await invoke("get_game_version");
