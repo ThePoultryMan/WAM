@@ -11,4 +11,4 @@
 </script>
 
 <h1 class="text-2xl">World of Warcraft</h1>
-<p class="leading-none">v{gameVersion}</p>
+<p class="ml-1 text-sm leading-tight">v{gameVersion}</p>
