@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use config::AppConfig;
 
 mod config;
-
+mod game;
 
 struct AppState {
     config: Mutex<AppConfig>,
@@ -26,6 +26,7 @@ impl AppState {
 fn main() {
     tauri::Builder::default()
         .manage(AppState::new())
+        .invoke_handler(tauri::generate_handler![game::get_game_version])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

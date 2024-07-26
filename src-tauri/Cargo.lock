@@ -3250,6 +3250,7 @@ version = "0.1.0"
 dependencies = [
  "confique",
  "platform-dirs",
+ "regex",
  "serde",
  "serde_json",
  "tauri",

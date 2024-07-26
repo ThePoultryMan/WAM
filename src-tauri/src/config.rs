@@ -4,6 +4,8 @@ use confique::{Config, Error};
 use platform_dirs::AppDirs;
 use serde::Serialize;
 
+use crate::game::ReleaseType;
+
 #[derive(Config, Serialize)]
 pub struct AppConfig {
     #[config(nested)]
@@ -34,6 +36,14 @@ impl AppConfig {
                 fs::write(get_or_create_config_dir(), string).expect("Failed to write config to file");
             },
             Err(error) => todo!("{error}"),
+        }
+    }
+
+    pub fn get_game_path(&self, release_type: ReleaseType) -> &Option<String> {
+        match release_type {
+            ReleaseType::Retail => {
+                &self.game_paths.retail
+            }
         }
     }
 }
