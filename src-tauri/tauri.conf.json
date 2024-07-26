@@ -56,10 +56,10 @@
     "windows": [
       {
         "fullscreen": false,
-        "height": 600,
+        "height": 603,
         "resizable": true,
         "title": "WAM!",
-        "width": 800,
+        "width": 1072,
         "center": true,
         "theme": "Dark"
       }
