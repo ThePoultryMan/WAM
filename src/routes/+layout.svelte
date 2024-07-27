@@ -10,7 +10,7 @@
     <PageStyledLink href="/info" class="bg-blue-400">Info</PageStyledLink>
     <PageStyledLink href="/addons" class="bg-blue-400">Addons</PageStyledLink>
   </div>
-  <div class="mx-5 mt-2">
+  <div class="mx-5 mt-2 w-full">
     <slot></slot>
   </div>
 </div>
