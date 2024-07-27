@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { page } from "$app/stores";
 
   export let href: string;
   let clazz: string;
   export { clazz as class };
+  export let active;
 </script>
 
-<a {href} class={$page.url.pathname.includes(href) ? clazz : ""}>
+<a {href} class={active ? clazz : ""}>
   <slot />
 </a>
