@@ -6,6 +6,7 @@ use std::sync::Mutex;
 use config::AppConfig;
 
 mod config;
+mod curseforge_window;
 mod game;
 
 struct AppState {
@@ -15,8 +16,8 @@ struct AppState {
 impl AppState {
     pub fn new() -> Self {
         match AppConfig::read() {
-            Ok(config) => {
-                Self { config: Mutex::new(config) }
+            Ok(config) => Self {
+                config: Mutex::new(config),
             },
             Err(error) => todo!("{error}"),
         }
@@ -26,7 +27,10 @@ impl AppState {
 fn main() {
     tauri::Builder::default()
         .manage(AppState::new())
-        .invoke_handler(tauri::generate_handler![game::get_game_version])
+        .invoke_handler(tauri::generate_handler![
+            game::get_game_version,
+            curseforge_window::create_curseforge_window
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
