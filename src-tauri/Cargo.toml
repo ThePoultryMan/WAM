@@ -22,6 +22,8 @@ platform-dirs = "0.3.0"
 confique = "0.2.5"
 toml = "0.8.16"
 regex = "1.10.5"
+scraper = "0.19.1"
+isahc = "1.7.2"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.
