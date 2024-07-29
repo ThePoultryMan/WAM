@@ -3,11 +3,11 @@
 
 use std::sync::{Arc, Mutex};
 
-use config::AppConfig;
+use data::{config::AppConfig, LocalSaveData};
 use tauri::Window;
 
-mod config;
 mod curseforge_window;
+mod data;
 mod game;
 
 struct AppState {
@@ -17,7 +17,7 @@ struct AppState {
 
 impl AppState {
     pub fn new() -> Self {
-        match AppConfig::read() {
+        match AppConfig::load() {
             Ok(config) => Self {
                 config: Mutex::new(config),
                 curseforge_window: Arc::new(Mutex::new(None)),
