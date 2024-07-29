@@ -16,24 +16,24 @@ struct GamePaths {
     retail: Option<String>,
 }
 
-impl LocalSaveData<AppConfig> for AppConfig {
+impl LocalSaveData for AppConfig {
+    type Data = AppConfig;
+
+    fn new() -> Self {
+        Self {
+            game_paths: GamePaths { retail: None },
+        }
+    }
+
     fn get_file_name() -> String {
         String::from("config.toml")
     }
 }
 
 impl AppConfig {
-    pub fn new() -> Self {
-        Self {
-            game_paths: GamePaths { retail: None },
-        }
-    }
-
     pub fn get_game_path(&self, release_type: ReleaseType) -> &Option<String> {
         match release_type {
-            ReleaseType::Retail => {
-                &self.game_paths.retail
-            }
+            ReleaseType::Retail => &self.game_paths.retail,
         }
     }
 }
