@@ -3,7 +3,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use data::{config::AppConfig, LocalSaveData};
+use data::{addons::Addons, config::AppConfig, LocalSaveData};
 use tauri::Window;
 
 mod curseforge_window;
@@ -12,17 +12,19 @@ mod game;
 
 struct AppState {
     config: Mutex<AppConfig>,
+    addons: Mutex<Addons>,
     curseforge_window: Arc<Mutex<Option<Window>>>,
 }
 
 impl AppState {
     pub fn new() -> Self {
-        match AppConfig::load() {
-            Ok(config) => Self {
+        match (AppConfig::load(), Addons::load()) {
+            (Ok(config), Ok(addons)) => Self {
                 config: Mutex::new(config),
+                addons: Mutex::new(addons),
                 curseforge_window: Arc::new(Mutex::new(None)),
             },
-            Err(error) => todo!("{error}"),
+            _ => todo!(),
         }
     }
 }
