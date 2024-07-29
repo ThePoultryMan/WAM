@@ -1,7 +1,4 @@
-use std::{fs, path::PathBuf};
-
-use confique::{Config, Error};
-use platform_dirs::AppDirs;
+use confique::Config;
 use serde::Serialize;
 
 use crate::game::ReleaseType;
