@@ -22,3 +22,6 @@ vite.config.ts.timestamp-*
 
 # Rust
 /target/
+
+# .vscode
+.vscode/settings.json
