@@ -1,9 +1,10 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use config::AppConfig;
+use tauri::Window;
 
 mod config;
 mod curseforge_window;
@@ -11,6 +12,7 @@ mod game;
 
 struct AppState {
     config: Mutex<AppConfig>,
+    curseforge_window: Arc<Mutex<Option<Window>>>,
 }
 
 impl AppState {
@@ -18,6 +20,7 @@ impl AppState {
         match AppConfig::read() {
             Ok(config) => Self {
                 config: Mutex::new(config),
+                curseforge_window: Arc::new(Mutex::new(None)),
             },
             Err(error) => todo!("{error}"),
         }

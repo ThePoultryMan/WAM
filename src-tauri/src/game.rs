@@ -20,18 +20,17 @@ pub fn get_game_version(state: State<AppState>) -> Option<String> {
                 build_info_path.push(".build.info");
                 match fs::read_to_string(build_info_path) {
                     Ok(string) => {
-                        let regex = Regex::new(r"text\?\|\|\|(?<version>.*?)\|\|").expect("An invalid pattern was supplied");
+                        let regex = Regex::new(r"text\?\|\|\|(?<version>.*?)\|\|")
+                            .expect("An invalid pattern was supplied");
                         match regex.captures(&string) {
-                            Some(captures) => {
-                                return Some(captures["version"].to_owned())
-                            },
+                            Some(captures) => return Some(captures["version"].to_owned()),
                             None => (),
                         }
-                    },
+                    }
                     Err(_) => (),
                 }
             }
-        },
+        }
         Err(_) => (),
     }
     Some("Internal Error".to_owned())
