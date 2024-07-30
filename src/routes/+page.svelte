@@ -15,7 +15,7 @@
   });
 
   function setGamePath() {
-    invoke("set_game_path", { releaseType: "Release", path: gamePath });
+    invoke("set_game_path", { releaseType: "Retail", path: gamePath });
     invoke("save_config");
   }
 </script>
