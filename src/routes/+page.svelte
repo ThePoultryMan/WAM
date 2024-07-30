@@ -25,6 +25,7 @@
 <p class="ml-1 text-sm leading-tight">v{gameVersion}</p>
 <DynamicHR element={headerElement} />
 <form>
-  <input type="text" bind:value={gamePath} />
+  <label for="game-path">Game Path:</label>
+  <input id="game-path" type="text" bind:value={gamePath} />
   <button on:click={setGamePath}>Set</button>
 </form>
