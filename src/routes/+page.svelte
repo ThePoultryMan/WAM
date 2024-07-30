@@ -14,9 +14,10 @@
     gameVersion = await invoke("get_game_version");
   });
 
-  function setGamePath() {
-    invoke("set_game_path", { releaseType: "Retail", path: gamePath });
-    invoke("save_config");
+  async function setGamePath() {
+    await invoke("set_game_path", { releaseType: "Retail", path: gamePath });
+    await invoke("save_config");
+    gameVersion = await invoke("get_game_version");
   }
 </script>
 
