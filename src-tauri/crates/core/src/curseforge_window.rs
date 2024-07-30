@@ -26,7 +26,6 @@ pub async fn create_curseforge_window(
             match global_curseforge_window.lock() {
                 Ok(curseforge_window_guard) => {
                     if let Some(curseforge_window) = &*curseforge_window_guard {
-                        println!("{url}");
                         curseforge_window
                             .eval(include_str!("./assets/main-cleaner.js"))
                             .unwrap();
