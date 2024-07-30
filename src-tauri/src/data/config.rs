@@ -1,7 +1,8 @@
 use confique::Config;
 use serde::Serialize;
+use tauri::State;
 
-use crate::game::ReleaseType;
+use crate::{game::ReleaseType, AppState};
 
 use super::LocalSaveData;
 
@@ -35,5 +36,18 @@ impl AppConfig {
         match release_type {
             ReleaseType::Retail => &self.game_paths.retail,
         }
+    }
+
+    pub fn set_game_path(&mut self, release_type: ReleaseType, path: String) {
+        match release_type {
+            ReleaseType::Retail => self.game_paths.retail = Some(path),
+        }
+    }
+}
+
+#[tauri::command]
+pub fn save_config(state: State<AppState>) {
+    if let Ok(config) = state.config.lock() {
+        config.save();
     }
 }

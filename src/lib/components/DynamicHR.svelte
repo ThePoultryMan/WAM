@@ -6,4 +6,4 @@
   let lineWidth = 0;
 </script>
 
-<hr class="mt-1" style="width: {lineWidth * 1.25}px;" />
+<hr class="my-1" style="width: {lineWidth * 1.25}px;" />
