@@ -24,8 +24,8 @@
 <h1 bind:this={headerElement} class="w-fit text-2xl">World of Warcraft</h1>
 <p class="ml-1 text-sm leading-tight">v{gameVersion}</p>
 <DynamicHR element={headerElement} />
-<form>
+<form class="flex items-center gap-1 *:leading-none">
   <label for="game-path">Game Path:</label>
-  <input id="game-path" type="text" bind:value={gamePath} />
-  <button on:click={setGamePath}>Set</button>
+  <input id="game-path" type="text" bind:value={gamePath} class="flex-1 w-max p-1 bg-neutral-900" />
+  <button on:click={setGamePath} class="ml-1 py-1 px-3 bg-neutral-900 border border-neutral-300">Set</button>
 </form>
