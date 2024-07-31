@@ -172,7 +172,10 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
 
         output_stream.push(input);
         for (i, name) in function_names.iter().enumerate() {
-            output_stream.push(TokenStream::from_str(&"#[tauri::command]").expect("Cannot add tauri command attribute."));
+            output_stream.push(
+                TokenStream::from_str(&"#[tauri::command]")
+                    .expect("Cannot add tauri command attribute."),
+            );
 
             let function_data = function_data_vec.get(i).unwrap(); // If we got to this point, we can assume the items exist.
             let call_params = function_data.get_params();
@@ -185,9 +188,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
             let return_type = match &function_data.return_type {
                 // ReturnType::Default => Type::Infer(syn::TypeInfer { underscore_token:  }),
                 ReturnType::Type(_, typed) => match typed.deref() {
-                    Type::Reference(reference) => {
-                        reference.elem.to_token_stream().into()
-                    }
+                    Type::Reference(reference) => reference.elem.to_token_stream().into(),
                     Type::Path(path) => path.path.to_token_stream().into(),
                     _ => syn::Error::new(Span::call_site().into(), "ugh").to_compile_error(),
                 },
