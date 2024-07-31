@@ -9,6 +9,12 @@ use syn::{
     PatIdent, ReturnType, Type,
 };
 
+macro_rules! return_error {
+    ($literal:literal) => {
+        syn::Error::new(Span::call_site().into(), $literal).into_compile_error().into()
+    };
+}
+
 #[derive(Clone)]
 struct FunctionData {
     state: State,
@@ -190,7 +196,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                 ReturnType::Type(_, typed) => match typed.deref() {
                     Type::Reference(reference) => reference.elem.to_token_stream().into(),
                     Type::Path(path) => path.path.to_token_stream().into(),
-                    _ => syn::Error::new(Span::call_site().into(), "ugh").to_compile_error(),
+                    _ => return_error!("ugh"),
                 },
                 ReturnType::Default => TokenStream::from_str("()").unwrap().into(),
             };
@@ -206,7 +212,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                 ),
                 MutexBehavior::Lock => output_stream.push(
                     if function_data.return_type != ReturnType::Default {
-                        syn::Error::new(Span::call_site().into(), "The 'lock' mutex behavior does not work when the original function has a return type.").into_compile_error().into()
+                        return_error!("The 'lock' mutex behavior does not work when the original function has a return type.")
                     } else {
                         quote! {
                             pub fn #name(#function_data) {
