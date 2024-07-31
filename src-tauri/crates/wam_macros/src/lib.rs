@@ -1,4 +1,4 @@
-use darling::FromMeta;
+use darling::{ast::NestedMeta, Error, FromMeta};
 use proc_macro::TokenStream;
 use proc_macro2::{Punct, Spacing};
 use quote::{quote, ToTokens, TokenStreamExt};
@@ -7,23 +7,21 @@ use syn::{
     PatIdent,
 };
 
-#[derive(Default)]
 struct FunctionParameters {
-    state: Option<String>,
+    state: String,
+    use_state: bool,
     typed_params: Vec<(PatIdent, String)>,
 }
 
 #[derive(Default, FromMeta)]
 struct WithTauriCommandArgs {
-    #[darling(default)]
-    _replace_self: Option<bool>,
-    _state: Option<String>,
+    state: Option<String>,
 }
 
 impl ToTokens for FunctionParameters {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        if let Some(state) = &self.state {
-            tokens.append(Ident::from_string(state).expect("invalid state name"));
+        if self.use_state {
+            tokens.append(Ident::from_string(&self.state).expect("invalid state name"));
             tokens.append(Punct::new(':', Spacing::Alone));
             tokens.append(
                 Ident::from_string("State").expect("Invalid state type. This should not happen"),
@@ -35,7 +33,7 @@ impl ToTokens for FunctionParameters {
             tokens.append(Punct::new('>', Spacing::Alone));
         }
         for i in 0..self.typed_params.len() {
-            if self.state.is_some() || i != 0 {
+            if self.use_state || i != 0 {
                 tokens.append(Punct::new(',', Spacing::Alone));
             }
             let (ident, path) = &self.typed_params[i];
@@ -47,11 +45,19 @@ impl ToTokens for FunctionParameters {
 }
 
 impl FunctionParameters {
+    fn new(state: String) -> Self {
+        Self {
+            state,
+            use_state: false,
+            typed_params: Vec::new(),
+        }
+    }
+
     fn add_new(&mut self, punctuated: &Punctuated<FnArg, Comma>) {
         for arg in punctuated {
             match arg {
                 FnArg::Receiver(_) => {
-                    self.state = Some("state".to_owned());
+                    self.use_state = true;
                 }
                 FnArg::Typed(pat_type) => match &*pat_type.pat {
                     Pat::Ident(ident) => match &*pat_type.ty {
@@ -75,9 +81,16 @@ impl FunctionParameters {
 }
 
 #[proc_macro_attribute]
-pub fn contains_tauri_commands(_: TokenStream, input: TokenStream) -> TokenStream {
+pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenStream {
     let temp_input = input.clone();
     let parsed_input = parse_macro_input!(temp_input as ItemImpl);
+    let parsed_args = match NestedMeta::parse_meta_list(args.into()) {
+        Ok(attribute_arguments) => match WithTauriCommandArgs::from_list(&attribute_arguments) {
+            Ok(args) => args,
+            Err(error) => return TokenStream::from(error.write_errors()),
+        },
+        Err(error) => return TokenStream::from(Error::from(error).write_errors()),
+    };
 
     let mut function_names = Vec::new();
     let mut function_params = Vec::new();
@@ -89,7 +102,9 @@ pub fn contains_tauri_commands(_: TokenStream, input: TokenStream) -> TokenStrea
                     if let Some(last_segment) = attribute.path().segments.last() {
                         if last_segment.ident == "with_tauri_command" {
                             function_names.push(function.sig.ident.clone());
-                            let mut params = FunctionParameters::default();
+                            let mut params = FunctionParameters::new(
+                                parsed_args.state.clone().unwrap_or(String::from("state")),
+                            );
                             params.add_new(&function.sig.inputs);
                             function_params.push(params);
                         }
