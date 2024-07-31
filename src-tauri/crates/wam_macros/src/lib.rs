@@ -23,6 +23,15 @@ struct State {
 struct WithTauriCommandArgs {
     state: Option<String>,
     body_state: Option<String>,
+    #[darling(default)]
+    mutex_behavior: MutexBehavior,
+}
+
+#[derive(Default)]
+enum MutexBehavior {
+    #[default]
+    None,
+    Lock,
 }
 
 impl ToTokens for FunctionParameters {
@@ -106,6 +115,16 @@ impl FunctionParameters {
     }
 }
 
+impl FromMeta for MutexBehavior {
+    fn from_string(value: &str) -> darling::Result<Self> {
+        match value.to_ascii_lowercase().as_str() {
+            "none" => darling::Result::Ok(Self::None),
+            "lock" => darling::Result::Ok(Self::Lock),
+            _ => panic!("An invalid option was supplied for 'mutex_behavior'"),
+        }
+    }
+}
+
 #[proc_macro_attribute]
 pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenStream {
     let temp_input = input.clone();
@@ -155,14 +174,27 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                     .unwrap_or(parameters.state.name.clone()),
             );
 
-            functions.push(
-                quote! {
-                    pub fn #name(#parameters) {
-                        #body_state.#name(#(#call_params)*);
+            match parsed_args.mutex_behavior {
+                MutexBehavior::None => functions.push(
+                    quote! {
+                        pub fn #name(#parameters) {
+                            #body_state.#name(#(#call_params)*);
+                        }
                     }
-                }
-                .into(),
-            )
+                    .into(),
+                ),
+                MutexBehavior::Lock => functions.push(
+                    quote! {
+                        pub fn #name(#parameters) {
+                            match #body_state.lock() {
+                                Ok(guard) => guard.#name(#(#call_params)*),
+                                Err(_) => (),
+                            }
+                        }
+                    }
+                    .into(),
+                ),
+            }
         }
 
         return TokenStream::from_iter(functions);
