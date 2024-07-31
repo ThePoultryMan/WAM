@@ -6,7 +6,7 @@ use proc_macro2::{Punct, Spacing};
 use quote::{quote, ToTokens, TokenStreamExt};
 use syn::{
     parse_macro_input, punctuated::Punctuated, token::Comma, FnArg, Ident, ImplItem, ItemImpl, Pat,
-    PatIdent, ReturnType, Token, Type,
+    PatIdent, ReturnType, Type,
 };
 
 #[derive(Clone)]
@@ -182,12 +182,10 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                     .clone()
                     .unwrap_or(function_data.state.name.clone()),
             );
-            let mut return_reference_symbol = None;
             let return_type = match &function_data.return_type {
                 // ReturnType::Default => Type::Infer(syn::TypeInfer { underscore_token:  }),
                 ReturnType::Type(_, typed) => match typed.deref() {
                     Type::Reference(reference) => {
-                        return_reference_symbol = Some(Punct::new('&', Spacing::Alone));
                         reference.elem.to_token_stream().into()
                     }
                     Type::Path(path) => path.path.to_token_stream().into(),
