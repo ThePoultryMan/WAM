@@ -1,16 +1,17 @@
 use darling::{ast::NestedMeta, Error, FromMeta};
-use proc_macro::TokenStream;
+use proc_macro::{Span, TokenStream};
 use proc_macro2::{Punct, Spacing};
 use quote::{quote, ToTokens, TokenStreamExt};
 use syn::{
     parse_macro_input, punctuated::Punctuated, token::Comma, FnArg, Ident, ImplItem, ItemImpl, Pat,
-    PatIdent,
+    PatIdent, ReturnType,
 };
 
 #[derive(Clone)]
-struct FunctionParameters {
+struct FunctionData {
     state: State,
     typed_params: Vec<(PatIdent, String)>,
+    return_type: ReturnType,
 }
 
 #[derive(Clone)]
@@ -32,9 +33,10 @@ enum MutexBehavior {
     #[default]
     None,
     Lock,
+    MatchToOption,
 }
 
-impl ToTokens for FunctionParameters {
+impl ToTokens for FunctionData {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         if self.state.use_state {
             tokens.append(Ident::from_string(&self.state.name).expect("invalid state name"));
@@ -69,13 +71,14 @@ impl ToTokens for State {
     }
 }
 
-impl FunctionParameters {
-    fn new(state: String) -> Self {
+impl FunctionData {
+    fn new(state: String, return_type: ReturnType) -> Self {
         Self {
             state: State {
                 name: state,
                 use_state: false,
             },
+            return_type,
             typed_params: Vec::new(),
         }
     }
@@ -120,6 +123,7 @@ impl FromMeta for MutexBehavior {
         match value.to_ascii_lowercase().as_str() {
             "none" => darling::Result::Ok(Self::None),
             "lock" => darling::Result::Ok(Self::Lock),
+            "match_to_option" => darling::Result::Ok(Self::MatchToOption),
             _ => panic!("An invalid option was supplied for 'mutex_behavior'"),
         }
     }
@@ -138,7 +142,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
     };
 
     let mut function_names = Vec::new();
-    let mut function_params = Vec::new();
+    let mut function_data_vec = Vec::new();
 
     for item in parsed_input.items {
         match item {
@@ -147,11 +151,12 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                     if let Some(last_segment) = attribute.path().segments.last() {
                         if last_segment.ident == "with_tauri_command" {
                             function_names.push(function.sig.clone().ident);
-                            let mut params = FunctionParameters::new(
+                            let mut params = FunctionData::new(
                                 parsed_args.state.clone().unwrap_or(String::from("state")),
+                                function.sig.output.clone(),
                             );
                             params.add_new(&function.sig.inputs);
-                            function_params.push(params.clone());
+                            function_data_vec.push(params.clone());
                         }
                     }
                 }
@@ -165,35 +170,50 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
 
         functions.push(input);
         for (i, name) in function_names.iter().enumerate() {
-            let parameters = function_params.get(i).unwrap(); // If we got to this point, we can assume the items exist.
-            let call_params = parameters.get_params();
+            let function_data = function_data_vec.get(i).unwrap(); // If we got to this point, we can assume the items exist.
+            let call_params = function_data.get_params();
             let body_state = evaluate_body_state(
                 &parsed_args
                     .body_state
                     .clone()
-                    .unwrap_or(parameters.state.name.clone()),
+                    .unwrap_or(function_data.state.name.clone()),
             );
+            let return_type = &function_data.return_type;
 
             match parsed_args.mutex_behavior {
                 MutexBehavior::None => functions.push(
                     quote! {
-                        pub fn #name(#parameters) {
+                        pub fn #name(#function_data) #return_type {
                             #body_state.#name(#(#call_params)*);
                         }
                     }
                     .into(),
                 ),
                 MutexBehavior::Lock => functions.push(
-                    quote! {
-                        pub fn #name(#parameters) {
-                            match #body_state.lock() {
-                                Ok(guard) => guard.#name(#(#call_params)*),
-                                Err(_) => (),
+                    if return_type != &ReturnType::Default {
+                        syn::Error::new(Span::call_site().into(), "The 'lock' mutex behavior does not work when the original function has a return type.").into_compile_error().into()
+                    } else {
+                        quote! {
+                            pub fn #name(#function_data) {
+                                match #body_state.lock() {
+                                    Ok(guard) => guard.#name(#(#call_params)*),
+                                    Err(_) => (),
+                                }
                             }
                         }
+                        .into()
                     }
-                    .into(),
                 ),
+                MutexBehavior::MatchToOption => functions.push(
+                    quote! {
+                        pub fn #name(#function_data) #return_type {
+                            match #body_state.lock().ok() {
+                                Some(guard) => Some(guard.#name(#(#call_params)*)),
+                                None => None,
+                            }
+                        }
+                    }.into()
+                )
             }
         }
 
