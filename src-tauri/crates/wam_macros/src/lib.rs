@@ -168,10 +168,12 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
     }
 
     if !function_names.is_empty() {
-        let mut functions = Vec::new();
+        let mut output_stream = Vec::new();
 
-        functions.push(input);
+        output_stream.push(input);
         for (i, name) in function_names.iter().enumerate() {
+            output_stream.push(TokenStream::from_str(&"#[tauri::command]").expect("Cannot add tauri command attribute."));
+
             let function_data = function_data_vec.get(i).unwrap(); // If we got to this point, we can assume the items exist.
             let call_params = function_data.get_params();
             let body_state = evaluate_body_state(
@@ -195,7 +197,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
             };
 
             match parsed_args.mutex_behavior {
-                MutexBehavior::None => functions.push(
+                MutexBehavior::None => output_stream.push(
                     quote! {
                         pub fn #name(#function_data) -> #return_type {
                             #body_state.#name(#(#call_params)*);
@@ -203,7 +205,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                     }
                     .into(),
                 ),
-                MutexBehavior::Lock => functions.push(
+                MutexBehavior::Lock => output_stream.push(
                     if function_data.return_type != ReturnType::Default {
                         syn::Error::new(Span::call_site().into(), "The 'lock' mutex behavior does not work when the original function has a return type.").into_compile_error().into()
                     } else {
@@ -218,7 +220,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                         .into()
                     }
                 ),
-                MutexBehavior::MatchToOption => functions.push(
+                MutexBehavior::MatchToOption => output_stream.push(
                     quote! {
                         pub fn #name(#function_data) -> Option<#return_type> {
                             match #body_state.lock().ok() {
@@ -232,7 +234,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
             }
         }
 
-        return TokenStream::from_iter(functions);
+        return TokenStream::from_iter(output_stream);
     }
     quote! {}.into()
 }
