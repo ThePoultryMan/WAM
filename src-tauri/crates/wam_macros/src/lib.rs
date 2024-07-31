@@ -7,11 +7,13 @@ use syn::{
     PatIdent,
 };
 
+#[derive(Clone)]
 struct FunctionParameters {
     state: State,
     typed_params: Vec<(PatIdent, String)>,
 }
 
+#[derive(Clone)]
 struct State {
     name: String,
     use_state: bool,
@@ -20,6 +22,7 @@ struct State {
 #[derive(Default, FromMeta)]
 struct WithTauriCommandArgs {
     state: Option<String>,
+    body_state: Option<String>,
 }
 
 impl ToTokens for FunctionParameters {
@@ -93,6 +96,14 @@ impl FunctionParameters {
             }
         }
     }
+
+    fn get_params(&self) -> Vec<PatIdent> {
+        let mut vec = Vec::with_capacity(self.typed_params.len());
+        for (pat_ident, _) in &self.typed_params {
+            vec.push(pat_ident.clone());
+        }
+        vec
+    }
 }
 
 #[proc_macro_attribute]
@@ -116,12 +127,12 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                 for attribute in function.attrs {
                     if let Some(last_segment) = attribute.path().segments.last() {
                         if last_segment.ident == "with_tauri_command" {
-                            function_names.push(function.sig.ident.clone());
+                            function_names.push(function.sig.clone().ident);
                             let mut params = FunctionParameters::new(
                                 parsed_args.state.clone().unwrap_or(String::from("state")),
                             );
                             params.add_new(&function.sig.inputs);
-                            function_params.push(params);
+                            function_params.push(params.clone());
                         }
                     }
                 }
@@ -135,14 +146,19 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
 
         functions.push(input);
         for (i, name) in function_names.iter().enumerate() {
-            let parameters = function_params.get(i).unwrap(); // If we got to this point, the function params exists.
-
-            let state = &parameters.state;
+            let parameters = function_params.get(i).unwrap(); // If we got to this point, we can assume the items exist.
+            let call_params = parameters.get_params();
+            let body_state = evaluate_body_state(
+                &parsed_args
+                    .body_state
+                    .clone()
+                    .unwrap_or(parameters.state.name.clone()),
+            );
 
             functions.push(
                 quote! {
                     pub fn #name(#parameters) {
-                        #state;
+                        #body_state.#name(#(#call_params)*);
                     }
                 }
                 .into(),
@@ -151,12 +167,25 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
 
         return TokenStream::from_iter(functions);
     }
-    quote! {}
-    .into()
+    quote! {}.into()
 }
 
 /// Supplementary macro for [contains_tauri_commands] to use.
 #[proc_macro_attribute]
 pub fn with_tauri_command(_: TokenStream, input: TokenStream) -> TokenStream {
     input
+}
+
+fn evaluate_body_state(body_state: &String) -> proc_macro2::TokenStream {
+    let mut tokens = proc_macro2::TokenStream::new();
+
+    let parts = body_state.split('.');
+    for (i, part) in parts.enumerate() {
+        if i != 0 {
+            tokens.append(Punct::new('.', Spacing::Alone));
+        }
+        tokens.append(Ident::from_string(part).expect("Invalid item within 'body_state'"));
+    }
+
+    tokens
 }

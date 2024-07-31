@@ -31,7 +31,7 @@ impl LocalSaveData for AppConfig {
     }
 }
 
-#[wam_macros::contains_tauri_commands]
+#[wam_macros::contains_tauri_commands(body_state = "state.config")]
 impl AppConfig {
     #[wam_macros::with_tauri_command]
     pub fn get_game_path(&self, release_type: ReleaseType) -> &Option<String> {
