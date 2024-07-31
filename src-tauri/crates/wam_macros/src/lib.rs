@@ -1,10 +1,12 @@
+use std::{ops::Deref, str::FromStr};
+
 use darling::{ast::NestedMeta, Error, FromMeta};
 use proc_macro::{Span, TokenStream};
 use proc_macro2::{Punct, Spacing};
 use quote::{quote, ToTokens, TokenStreamExt};
 use syn::{
     parse_macro_input, punctuated::Punctuated, token::Comma, FnArg, Ident, ImplItem, ItemImpl, Pat,
-    PatIdent, ReturnType,
+    PatIdent, ReturnType, Token, Type,
 };
 
 #[derive(Clone)]
@@ -178,19 +180,31 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                     .clone()
                     .unwrap_or(function_data.state.name.clone()),
             );
-            let return_type = &function_data.return_type;
+            let mut return_reference_symbol = None;
+            let return_type = match &function_data.return_type {
+                // ReturnType::Default => Type::Infer(syn::TypeInfer { underscore_token:  }),
+                ReturnType::Type(_, typed) => match typed.deref() {
+                    Type::Reference(reference) => {
+                        return_reference_symbol = Some(Punct::new('&', Spacing::Alone));
+                        reference.elem.to_token_stream().into()
+                    }
+                    Type::Path(path) => path.path.to_token_stream().into(),
+                    _ => syn::Error::new(Span::call_site().into(), "ugh").to_compile_error(),
+                },
+                ReturnType::Default => TokenStream::from_str("()").unwrap().into(),
+            };
 
             match parsed_args.mutex_behavior {
                 MutexBehavior::None => functions.push(
                     quote! {
-                        pub fn #name(#function_data) #return_type {
+                        pub fn #name(#function_data) -> #return_type {
                             #body_state.#name(#(#call_params)*);
                         }
                     }
                     .into(),
                 ),
                 MutexBehavior::Lock => functions.push(
-                    if return_type != &ReturnType::Default {
+                    if function_data.return_type != ReturnType::Default {
                         syn::Error::new(Span::call_site().into(), "The 'lock' mutex behavior does not work when the original function has a return type.").into_compile_error().into()
                     } else {
                         quote! {
@@ -206,9 +220,10 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                 ),
                 MutexBehavior::MatchToOption => functions.push(
                     quote! {
-                        pub fn #name(#function_data) #return_type {
+                        pub fn #name(#function_data) -> Option<#return_type> {
                             match #body_state.lock().ok() {
-                                Some(guard) => Some(guard.#name(#(#call_params)*)),
+                                // We must clone here or else this could be a reference that's owned by the generated function
+                                Some(guard) => Some(guard.#name(#(#call_params)*).clone()),
                                 None => None,
                             }
                         }
