@@ -124,9 +124,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
             .into(),
         ]);
     }
-    quote! {
-        pub fn shit() {}
-    }
+    quote! {}
     .into()
 }
 
