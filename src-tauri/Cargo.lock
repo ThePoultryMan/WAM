@@ -3256,11 +3256,18 @@ dependencies = [
  "tauri",
  "tauri-build",
  "toml 0.8.16",
+ "wam_macros",
 ]
 
 [[package]]
 name = "wam_macros"
 version = "0.1.0"
+dependencies = [
+ "darling",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.72",
+]
 
 [[package]]
 name = "wasi"
