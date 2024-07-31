@@ -5,13 +5,12 @@ use proc_macro::{Span, TokenStream};
 use proc_macro2::{Punct, Spacing};
 use quote::{quote, ToTokens, TokenStreamExt};
 use syn::{
-    parse_macro_input, punctuated::Punctuated, token::Comma, FnArg, Ident, ImplItem, ItemImpl, Pat,
-    PatIdent, ReturnType, Type,
+    parse_macro_input, punctuated::Punctuated, token::Comma, FnArg, GenericArgument, Ident, ImplItem, ItemImpl, Pat, PatIdent, ReturnType, Type
 };
 
 macro_rules! return_error {
-    ($literal:literal) => {
-        syn::Error::new(Span::call_site().into(), $literal).into_compile_error().into()
+    ($content:expr) => {
+        syn::Error::new(Span::call_site().into(), $content).into_compile_error().into()
     };
 }
 
@@ -191,10 +190,44 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                     .clone()
                     .unwrap_or(function_data.state.name.clone()),
             );
+            let mut option_type = None;
             let return_type = match &function_data.return_type {
                 // ReturnType::Default => Type::Infer(syn::TypeInfer { underscore_token:  }),
                 ReturnType::Type(_, typed) => match typed.deref() {
-                    Type::Reference(reference) => reference.elem.to_token_stream().into(),
+                    Type::Reference(reference) => {
+                        match &*reference.elem {
+                            Type::Path(path) => {
+                                // Special Case: Option: Don't double up on options when using the MatchToOption mutex behavior
+                                // We know the first segment exists because we can't get to this point if it doesn't.
+                                let first_segment = path.path.segments.first().unwrap();
+                                if first_segment.ident.to_string().ends_with("Option") {
+                                    match &first_segment.arguments {
+                                        syn::PathArguments::AngleBracketed(arguments) => {
+                                            if let Some(first) = arguments.args.first() {
+                                                match first {
+                                                    GenericArgument::Type(typed) => {
+                                                        match typed {
+                                                            Type::Path(path) => {
+                                                                option_type = Some(path.path.to_token_stream());
+                                                            },
+                                                            _ => return return_error!("Currently, the option can only contain one layer of plain types.")
+                                                        }
+                                                    },
+                                                    _ => return return_error!("Currently, the option can only contain types.")
+                                                }
+                                            } else {
+                                                return return_error!("The provided option is invalid, or you are not using 'std::option::Option'")
+                                            }
+                                        }
+                                        _ => return return_error!("The provided option is invalid")
+                                    }
+                                }
+                            },
+                            _ => return return_error!("This macro does not currently support anything but one type nesting.")
+                        }
+
+                        reference.elem.to_token_stream()
+                    },
                     Type::Path(path) => path.path.to_token_stream().into(),
                     _ => return_error!("ugh"),
                 },
@@ -226,15 +259,29 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                     }
                 ),
                 MutexBehavior::MatchToOption => output_stream.push(
-                    quote! {
-                        pub fn #name(#function_data) -> Option<#return_type> {
-                            match #body_state.lock().ok() {
-                                // We must clone here or else this could be a reference that's owned by the generated function
-                                Some(guard) => Some(guard.#name(#(#call_params)*).clone()),
-                                None => None,
+                    if let Some(option_type) = option_type {
+                        quote! {
+                            pub fn #name(#function_data) -> Option<#option_type> {
+                                match #body_state.lock().ok() {
+                                    Some(guard) => match guard.#name(#(#call_params)*) {
+                                        Some(some) => Some(some.clone()),
+                                        None => None,
+                                    },
+                                    None => None,
+                                }
                             }
-                        }
-                    }.into()
+                        }.into()
+                    } else {
+                        quote! {
+                            pub fn #name(#function_data) -> Option<#return_type> {
+                                match #body_state.lock().ok() {
+                                    // We must clone here or else this could be a reference that's owned by the generated function
+                                    Some(guard) => Some(guard.#name(#(#call_params)*).clone()),
+                                    None => None,
+                                }
+                            }
+                        }.into()
+                    }
                 )
             }
         }
