@@ -8,9 +8,13 @@ use syn::{
 };
 
 struct FunctionParameters {
-    state: String,
-    use_state: bool,
+    state: State,
     typed_params: Vec<(PatIdent, String)>,
+}
+
+struct State {
+    name: String,
+    use_state: bool,
 }
 
 #[derive(Default, FromMeta)]
@@ -20,8 +24,8 @@ struct WithTauriCommandArgs {
 
 impl ToTokens for FunctionParameters {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        if self.use_state {
-            tokens.append(Ident::from_string(&self.state).expect("invalid state name"));
+        if self.state.use_state {
+            tokens.append(Ident::from_string(&self.state.name).expect("invalid state name"));
             tokens.append(Punct::new(':', Spacing::Alone));
             tokens.append(
                 Ident::from_string("State").expect("Invalid state type. This should not happen"),
@@ -33,7 +37,7 @@ impl ToTokens for FunctionParameters {
             tokens.append(Punct::new('>', Spacing::Alone));
         }
         for i in 0..self.typed_params.len() {
-            if self.use_state || i != 0 {
+            if self.state.use_state || i != 0 {
                 tokens.append(Punct::new(',', Spacing::Alone));
             }
             let (ident, path) = &self.typed_params[i];
@@ -44,11 +48,22 @@ impl ToTokens for FunctionParameters {
     }
 }
 
+impl ToTokens for State {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        if self.use_state {
+            tokens.append(Ident::from_string(&self.name).expect("Invalid state name"));
+            tokens.append(Punct::new('.', Spacing::Alone));
+        }
+    }
+}
+
 impl FunctionParameters {
     fn new(state: String) -> Self {
         Self {
-            state,
-            use_state: false,
+            state: State {
+                name: state,
+                use_state: false,
+            },
             typed_params: Vec::new(),
         }
     }
@@ -57,7 +72,7 @@ impl FunctionParameters {
         for arg in punctuated {
             match arg {
                 FnArg::Receiver(_) => {
-                    self.use_state = true;
+                    self.state.use_state = true;
                 }
                 FnArg::Typed(pat_type) => match &*pat_type.pat {
                     Pat::Ident(ident) => match &*pat_type.ty {
@@ -71,9 +86,9 @@ impl FunctionParameters {
                             }
                             self.typed_params.push((ident.clone(), path_string));
                         }
-                        _ => {}
+                        _ => {} // TODO: Implement behavior.
                     },
-                    _ => {}
+                    _ => {} // TODO: Implement behavior.
                 },
             }
         }
@@ -116,13 +131,25 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
     }
 
     if !function_names.is_empty() {
-        return TokenStream::from_iter([
-            input,
-            quote! {
-                pub fn #(#function_names)*(#(#function_params)*) {}
-            }
-            .into(),
-        ]);
+        let mut functions = Vec::new();
+
+        functions.push(input);
+        for (i, name) in function_names.iter().enumerate() {
+            let parameters = function_params.get(i).unwrap(); // If we got to this point, the function params exists.
+
+            let state = &parameters.state;
+
+            functions.push(
+                quote! {
+                    pub fn #name(#parameters) {
+                        #state;
+                    }
+                }
+                .into(),
+            )
+        }
+
+        return TokenStream::from_iter(functions);
     }
     quote! {}
     .into()
