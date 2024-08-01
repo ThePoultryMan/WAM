@@ -12,10 +12,12 @@
 
   onMount(async () => {
     gameVersion = await invoke("get_game_version");
+    gamePath = await invoke("get_game_path", { releaseType: "Retail" });
   });
 
   async function setGamePath() {
     await invoke("set_game_path", { releaseType: "Retail", path: gamePath });
+    gamePath = await invoke("get_game_path", { releaseType: "Retail" });
     await invoke("save_config");
     gameVersion = await invoke("get_game_version");
   }

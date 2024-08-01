@@ -34,6 +34,7 @@ fn main() {
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             curseforge_window::create_curseforge_window,
+            data::config::get_game_path,
             data::config::save_config,
             game::get_game_version,
             game::set_game_path,
