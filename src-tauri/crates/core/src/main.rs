@@ -35,9 +35,9 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             curseforge_window::create_curseforge_window,
             data::config::get_game_path,
+            data::config::set_game_path,
             data::config::save_config,
             game::get_game_version,
-            game::set_game_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

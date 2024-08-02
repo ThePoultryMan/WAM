@@ -40,6 +40,7 @@ impl AppConfig {
         }
     }
 
+    #[wam_macros::with_tauri_command]
     pub fn set_game_path(&mut self, release_type: ReleaseType, path: String) {
         match release_type {
             ReleaseType::Retail => self.game_paths.retail = Some(path),

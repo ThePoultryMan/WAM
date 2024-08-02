@@ -37,10 +37,3 @@ pub fn get_game_version(state: State<AppState>) -> Option<String> {
     }
     Some("Internal Error".to_owned())
 }
-
-#[tauri::command]
-pub fn set_game_path(state: State<AppState>, release_type: ReleaseType, path: String) {
-    if let Ok(mut mutex_guard) = state.config.lock() {
-        mutex_guard.set_game_path(release_type, path);
-    }
-}
