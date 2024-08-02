@@ -31,7 +31,7 @@ struct State {
 }
 
 #[derive(Default, FromMeta)]
-struct WithTauriCommandArgs {
+struct ContainsTauriCommandsArgs {
     state: Option<String>,
     body_state: Option<String>,
     #[darling(default)]
@@ -144,7 +144,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
     let temp_input = input.clone();
     let parsed_input = parse_macro_input!(temp_input as ItemImpl);
     let parsed_args = match NestedMeta::parse_meta_list(args.into()) {
-        Ok(attribute_arguments) => match WithTauriCommandArgs::from_list(&attribute_arguments) {
+        Ok(attribute_arguments) => match ContainsTauriCommandsArgs::from_list(&attribute_arguments) {
             Ok(args) => args,
             Err(error) => return TokenStream::from(error.write_errors()),
         },
