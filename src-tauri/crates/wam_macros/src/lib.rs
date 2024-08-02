@@ -9,13 +9,8 @@ use syn::{
     ImplItem, ItemImpl, Pat, PatIdent, ReturnType, Type,
 };
 
-macro_rules! return_error {
-    ($content:expr) => {
-        syn::Error::new(Span::call_site().into(), $content)
-            .into_compile_error()
-            .into()
-    };
-}
+#[macro_use]
+mod util;
 
 #[derive(Clone)]
 struct FunctionData {
@@ -187,7 +182,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
 
             let function_data = function_data_vec.get(i).unwrap(); // If we got to this point, we can assume the items exist.
             let call_params = function_data.get_params();
-            let body_state = evaluate_body_state(
+            let body_state = util::evaluate_body_state(
                 &parsed_args
                     .body_state
                     .clone()
@@ -298,18 +293,4 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
 #[proc_macro_attribute]
 pub fn with_tauri_command(_: TokenStream, input: TokenStream) -> TokenStream {
     input
-}
-
-fn evaluate_body_state(body_state: &String) -> proc_macro2::TokenStream {
-    let mut tokens = proc_macro2::TokenStream::new();
-
-    let parts = body_state.split('.');
-    for (i, part) in parts.enumerate() {
-        if i != 0 {
-            tokens.append(Punct::new('.', Spacing::Alone));
-        }
-        tokens.append(Ident::from_string(part).expect("Invalid item within 'body_state'"));
-    }
-
-    tokens
 }
