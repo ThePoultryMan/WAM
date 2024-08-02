@@ -5,12 +5,15 @@ use proc_macro::{Span, TokenStream};
 use proc_macro2::{Punct, Spacing};
 use quote::{quote, ToTokens, TokenStreamExt};
 use syn::{
-    parse_macro_input, punctuated::Punctuated, token::Comma, FnArg, GenericArgument, Ident, ImplItem, ItemImpl, Pat, PatIdent, ReturnType, Type
+    parse_macro_input, punctuated::Punctuated, token::Comma, FnArg, GenericArgument, Ident,
+    ImplItem, ItemImpl, Pat, PatIdent, ReturnType, Type,
 };
 
 macro_rules! return_error {
     ($content:expr) => {
-        syn::Error::new(Span::call_site().into(), $content).into_compile_error().into()
+        syn::Error::new(Span::call_site().into(), $content)
+            .into_compile_error()
+            .into()
     };
 }
 
@@ -227,7 +230,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                         }
 
                         reference.elem.to_token_stream()
-                    },
+                    }
                     Type::Path(path) => path.path.to_token_stream().into(),
                     _ => return_error!("ugh"),
                 },
@@ -238,7 +241,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                 MutexBehavior::None => output_stream.push(
                     quote! {
                         pub fn #name(#function_data) -> #return_type {
-                            #body_state.#name(#(#call_params)*);
+                            #body_state.#name(#(#call_params),*);
                         }
                     }
                     .into(),
@@ -250,7 +253,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                         quote! {
                             pub fn #name(#function_data) {
                                 match #body_state.lock() {
-                                    Ok(guard) => guard.#name(#(#call_params)*),
+                                    Ok(guard) => guard.#name(#(#call_params),*),
                                     Err(_) => (),
                                 }
                             }
@@ -276,7 +279,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                             pub fn #name(#function_data) -> Option<#return_type> {
                                 match #body_state.lock().ok() {
                                     // We must clone here or else this could be a reference that's owned by the generated function
-                                    Some(guard) => Some(guard.#name(#(#call_params)*).clone()),
+                                    Some(guard) => Some(guard.#name(#(#call_params),*).clone()),
                                     None => None,
                                 }
                             }
