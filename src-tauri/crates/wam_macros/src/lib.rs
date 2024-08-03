@@ -1,6 +1,6 @@
 use std::{ops::Deref, str::FromStr};
 
-use darling::{ast::NestedMeta, Error, FromMeta};
+use darling::FromMeta;
 use proc_macro::{Span, TokenStream};
 use proc_macro2::{Punct, Spacing};
 use quote::{quote, ToTokens, TokenStreamExt};
@@ -8,6 +8,7 @@ use syn::{
     parse_macro_input, punctuated::Punctuated, token::Comma, FnArg, GenericArgument, Ident,
     ImplItem, ItemImpl, Pat, PatIdent, ReturnType, Type,
 };
+use util::to_arg_struct;
 
 #[macro_use]
 mod util;
@@ -17,6 +18,7 @@ struct FunctionData {
     state: State,
     typed_params: Vec<(PatIdent, String)>,
     return_type: ReturnType,
+    command_args: WithTauriCommandArgs,
 }
 
 #[derive(Clone)]
@@ -31,6 +33,12 @@ struct ContainsTauriCommandsArgs {
     body_state: Option<String>,
     #[darling(default)]
     mutex_behavior: MutexBehavior,
+}
+
+#[derive(Clone, Default, FromMeta)]
+struct WithTauriCommandArgs {
+    #[darling(default)]
+    mutable_mutex: bool,
 }
 
 #[derive(Default)]
@@ -77,7 +85,7 @@ impl ToTokens for State {
 }
 
 impl FunctionData {
-    fn new(state: String, return_type: ReturnType) -> Self {
+    fn new(state: String, return_type: ReturnType, command_args: WithTauriCommandArgs) -> Self {
         Self {
             state: State {
                 name: state,
@@ -85,6 +93,7 @@ impl FunctionData {
             },
             return_type,
             typed_params: Vec::new(),
+            command_args,
         }
     }
 
@@ -138,13 +147,7 @@ impl FromMeta for MutexBehavior {
 pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenStream {
     let temp_input = input.clone();
     let parsed_input = parse_macro_input!(temp_input as ItemImpl);
-    let parsed_args = match NestedMeta::parse_meta_list(args.into()) {
-        Ok(attribute_arguments) => match ContainsTauriCommandsArgs::from_list(&attribute_arguments) {
-            Ok(args) => args,
-            Err(error) => return TokenStream::from(error.write_errors()),
-        },
-        Err(error) => return TokenStream::from(Error::from(error).write_errors()),
-    };
+    let parsed_args: ContainsTauriCommandsArgs = match_error!(to_arg_struct(args));
 
     let mut function_names = Vec::new();
     let mut function_data_vec = Vec::new();
@@ -156,10 +159,26 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                     if let Some(last_segment) = attribute.path().segments.last() {
                         if last_segment.ident == "with_tauri_command" {
                             function_names.push(function.sig.clone().ident);
+                            let mut tauri_command_args = None;
+
+                            match attribute.meta {
+                                syn::Meta::List(list) => match to_arg_struct(list.tokens.clone()) {
+                                    Ok(ok) => tauri_command_args = Some(ok),
+                                    Err(error) => return return_error!(error),
+                                },
+                                syn::Meta::Path(_) => {}
+                                _ => {
+                                    return return_error!(
+                                        "Invalid option(s) were supplied to 'with_tauri_command'"
+                                    )
+                                }
+                            }
                             let mut params = FunctionData::new(
                                 parsed_args.state.clone().unwrap_or(String::from("state")),
                                 function.sig.output.clone(),
+                                tauri_command_args.unwrap_or_default(),
                             );
+
                             params.add_new(&function.sig.inputs);
                             function_data_vec.push(params.clone());
                         }
@@ -189,6 +208,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                     .unwrap_or(function_data.state.name.clone()),
             );
             let mut option_type = None;
+            // TODO: Make this readable and good and stuff
             let return_type = match &function_data.return_type {
                 // ReturnType::Default => Type::Infer(syn::TypeInfer { underscore_token:  }),
                 ReturnType::Type(_, typed) => match typed.deref() {
@@ -232,6 +252,12 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                 ReturnType::Default => TokenStream::from_str("()").unwrap().into(),
             };
 
+            let mutable_mutex = if function_data.command_args.mutable_mutex {
+                Some(Ident::new("mut", Span::call_site().into()))
+            } else {
+                None
+            };
+
             match parsed_args.mutex_behavior {
                 MutexBehavior::None => output_stream.push(
                     quote! {
@@ -248,7 +274,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                         quote! {
                             pub fn #name(#function_data) {
                                 match #body_state.lock() {
-                                    Ok(guard) => guard.#name(#(#call_params),*),
+                                    Ok(#mutable_mutex guard) => guard.#name(#(#call_params),*),
                                     Err(_) => (),
                                 }
                             }
@@ -261,7 +287,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                         quote! {
                             pub fn #name(#function_data) -> Option<#option_type> {
                                 match #body_state.lock().ok() {
-                                    Some(guard) => match guard.#name(#(#call_params)*) {
+                                    Some(#mutable_mutex guard) => match guard.#name(#(#call_params)*) {
                                         Some(some) => Some(some.clone()),
                                         None => None,
                                     },
@@ -274,7 +300,7 @@ pub fn contains_tauri_commands(args: TokenStream, input: TokenStream) -> TokenSt
                             pub fn #name(#function_data) -> Option<#return_type> {
                                 match #body_state.lock().ok() {
                                     // We must clone here or else this could be a reference that's owned by the generated function
-                                    Some(guard) => Some(guard.#name(#(#call_params),*).clone()),
+                                    Some(#mutable_mutex guard) => Some(guard.#name(#(#call_params),*).clone()),
                                     None => None,
                                 }
                             }
